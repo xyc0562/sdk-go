@@ -77,7 +77,7 @@ type ChainClient interface {
 
 	SimulateMsg(clientCtx client.Context, msgs ...sdk.Msg) (*txtypes.SimulateResponse, error)
 	AsyncBroadcastMsg(msgs ...sdk.Msg) (*txtypes.BroadcastTxResponse, error)
-	SyncBroadcastMsg(msgs ...sdk.Msg) (*txtypes.BroadcastTxResponse, error)
+	SyncBroadcastMsg(fixedGas uint64, msgs ...sdk.Msg) (*txtypes.BroadcastTxResponse, error)
 
 	// Build signed tx with given accNum and accSeq, useful for offline siging
 	// If simulate is set to false, initialGas will be used
@@ -436,13 +436,13 @@ func (c *chainClient) GetBankBalance(ctx context.Context, address string, denom 
 }
 
 // SyncBroadcastMsg sends Tx to chain and waits until Tx is included in block.
-func (c *chainClient) SyncBroadcastMsg(msgs ...sdk.Msg) (*txtypes.BroadcastTxResponse, error) {
+func (c *chainClient) SyncBroadcastMsg(fixedGas uint64, msgs ...sdk.Msg) (*txtypes.BroadcastTxResponse, error) {
 	c.syncMux.Lock()
 	defer c.syncMux.Unlock()
 
 	c.txFactory = c.txFactory.WithSequence(c.accSeq)
 	c.txFactory = c.txFactory.WithAccountNumber(c.accNum)
-	res, err := c.broadcastTx(c.ctx, c.txFactory, true, msgs...)
+	res, err := c.broadcastTx(fixedGas, c.ctx, c.txFactory, true, msgs...)
 
 	if err != nil {
 		if strings.Contains(err.Error(), "account sequence mismatch") {
@@ -450,7 +450,7 @@ func (c *chainClient) SyncBroadcastMsg(msgs ...sdk.Msg) (*txtypes.BroadcastTxRes
 			c.txFactory = c.txFactory.WithSequence(c.accSeq)
 			c.txFactory = c.txFactory.WithAccountNumber(c.accNum)
 			log.Debugln("retrying broadcastTx with nonce", c.accSeq)
-			res, err = c.broadcastTx(c.ctx, c.txFactory, true, msgs...)
+			res, err = c.broadcastTx(fixedGas, c.ctx, c.txFactory, true, msgs...)
 		}
 		if err != nil {
 			resJSON, _ := json.MarshalIndent(res, "", "\t")
@@ -506,14 +506,14 @@ func (c *chainClient) AsyncBroadcastMsg(msgs ...sdk.Msg) (*txtypes.BroadcastTxRe
 
 	c.txFactory = c.txFactory.WithSequence(c.accSeq)
 	c.txFactory = c.txFactory.WithAccountNumber(c.accNum)
-	res, err := c.broadcastTx(c.ctx, c.txFactory, false, msgs...)
+	res, err := c.broadcastTx(0, c.ctx, c.txFactory, false, msgs...)
 	if err != nil {
 		if strings.Contains(err.Error(), "account sequence mismatch") {
 			c.syncNonce()
 			c.txFactory = c.txFactory.WithSequence(c.accSeq)
 			c.txFactory = c.txFactory.WithAccountNumber(c.accNum)
 			log.Debugln("retrying broadcastTx with nonce", c.accSeq)
-			res, err = c.broadcastTx(c.ctx, c.txFactory, false, msgs...)
+			res, err = c.broadcastTx(0, c.ctx, c.txFactory, false, msgs...)
 		}
 		if err != nil {
 			resJSON, _ := json.MarshalIndent(res, "", "\t")
@@ -636,6 +636,7 @@ func (c *chainClient) AsyncBroadcastSignedTx(txBytes []byte) (*txtypes.Broadcast
 }
 
 func (c *chainClient) broadcastTx(
+	fixedGas uint64,
 	clientCtx client.Context,
 	txf tx.Factory,
 	await bool,
@@ -664,6 +665,9 @@ func (c *chainClient) broadcastTx(
 		txf = txf.WithGas(adjustedGas)
 
 		c.gasWanted = adjustedGas
+	} else {
+		c.gasWanted = fixedGas
+		txf = txf.WithGas(fixedGas)
 	}
 
 	txn, err := txf.BuildUnsignedTx(msgs...)
@@ -763,14 +767,14 @@ func (c *chainClient) runBatchBroadcast() {
 		c.txFactory = c.txFactory.WithSequence(c.accSeq)
 		c.txFactory = c.txFactory.WithAccountNumber(c.accNum)
 		log.Debugln("broadcastTx with nonce", c.accSeq)
-		res, err := c.broadcastTx(c.ctx, c.txFactory, true, toSubmit...)
+		res, err := c.broadcastTx(0, c.ctx, c.txFactory, true, toSubmit...)
 		if err != nil {
 			if strings.Contains(err.Error(), "account sequence mismatch") {
 				c.syncNonce()
 				c.txFactory = c.txFactory.WithSequence(c.accSeq)
 				c.txFactory = c.txFactory.WithAccountNumber(c.accNum)
 				log.Debugln("retrying broadcastTx with nonce", c.accSeq)
-				res, err = c.broadcastTx(c.ctx, c.txFactory, true, toSubmit...)
+				res, err = c.broadcastTx(0, c.ctx, c.txFactory, true, toSubmit...)
 			}
 			if err != nil {
 				resJSON, _ := json.MarshalIndent(res, "", "\t")
