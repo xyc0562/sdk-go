@@ -7,6 +7,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc/credentials"
+	"time"
 )
 
 func init() {
@@ -19,9 +20,10 @@ func init() {
 }
 
 type ClientOptions struct {
-	GasPrices string
-	TLSCert   credentials.TransportCredentials
-	TxFactory *tx.Factory
+	GasPrices        string
+	TLSCert          credentials.TransportCredentials
+	TxFactory        *tx.Factory
+	BroadcastTimeout time.Duration
 }
 
 type ClientOption func(opts *ClientOptions) error

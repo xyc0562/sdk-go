@@ -571,6 +571,13 @@ func (c *chainClient) BuildSignedTx(clientCtx client.Context, accNum, accSeq, in
 	return clientCtx.TxConfig.TxEncoder()(txn.GetTx())
 }
 
+func (c *chainClient) getBroadcastTimeout() time.Duration {
+	if c.opts.BroadcastTimeout != 0 {
+		return c.opts.BroadcastTimeout
+	}
+	return defaultBroadcastTimeout
+}
+
 func (c *chainClient) SyncBroadcastSignedTx(txBytes []byte) (*txtypes.BroadcastTxResponse, error) {
 	req := txtypes.BroadcastTxRequest{
 		TxBytes: txBytes,
