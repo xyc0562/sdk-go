@@ -445,7 +445,8 @@ func (c *chainClient) SyncBroadcastMsg(fixedGas uint64, msgs ...sdk.Msg) (*txtyp
 	res, err := c.broadcastTx(fixedGas, c.ctx, c.txFactory, true, msgs...)
 
 	if err != nil {
-		if strings.Contains(err.Error(), "account sequence mismatch") {
+		if strings.Contains(err.Error(), "account sequence mismatch") ||
+			strings.Contains(err.Error(), "tx timed out") {
 			c.syncNonce()
 			c.txFactory = c.txFactory.WithSequence(c.accSeq)
 			c.txFactory = c.txFactory.WithAccountNumber(c.accNum)
@@ -508,7 +509,8 @@ func (c *chainClient) AsyncBroadcastMsg(msgs ...sdk.Msg) (*txtypes.BroadcastTxRe
 	c.txFactory = c.txFactory.WithAccountNumber(c.accNum)
 	res, err := c.broadcastTx(0, c.ctx, c.txFactory, false, msgs...)
 	if err != nil {
-		if strings.Contains(err.Error(), "account sequence mismatch") {
+		if strings.Contains(err.Error(), "account sequence mismatch") ||
+			strings.Contains(err.Error(), "tx timed out") {
 			c.syncNonce()
 			c.txFactory = c.txFactory.WithSequence(c.accSeq)
 			c.txFactory = c.txFactory.WithAccountNumber(c.accNum)
@@ -776,7 +778,8 @@ func (c *chainClient) runBatchBroadcast() {
 		log.Debugln("broadcastTx with nonce", c.accSeq)
 		res, err := c.broadcastTx(0, c.ctx, c.txFactory, true, toSubmit...)
 		if err != nil {
-			if strings.Contains(err.Error(), "account sequence mismatch") {
+			if strings.Contains(err.Error(), "account sequence mismatch") ||
+				strings.Contains(err.Error(), "tx timed out") {
 				c.syncNonce()
 				c.txFactory = c.txFactory.WithSequence(c.accSeq)
 				c.txFactory = c.txFactory.WithAccountNumber(c.accNum)
